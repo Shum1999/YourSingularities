@@ -1,4 +1,4 @@
-name: Build Minecraft Mod
+name: Build Forge 1.7.10 Mod
 
 on:
   push:
@@ -18,24 +18,45 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Cache Gradle
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
+    - name: Setup Minecraft and Forge cache
+      run: |
+        # Создаём директории
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
+        
+        # Скачиваем Minecraft JAR с Forge Maven
+        echo "Downloading Minecraft JAR..."
+        curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar \
+          "https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar"
+        
+        curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar \
+          "https://maven.minecraftforge.net/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar"
+        
+        # Создаём JSON файл
+        cat > ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/1.7.10.json << 'EOF'
+        {
+          "id": "1.7.10",
+          "type": "release",
+          "minecraftArguments": "--username \${auth_player_name} --version \${version_name} --gameDir \${game_directory} --assetsDir \${assets_root} --assetIndex \${assets_index_name} --uuid \${auth_uuid} --accessToken \${auth_access_token} --userProperties \${user_properties} --userType \${user_type}",
+          "libraries": []
+        }
+        EOF
+        
+        echo "✅ Minecraft files prepared"
+        ls -la ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+    
+    - name: Make gradlew executable
+      run: chmod +x gradlew
+    
+    - name: Clean previous builds
+      run: ./gradlew clean --no-daemon || true
     
     - name: Build with Gradle
-      uses: gradle/gradle-build-action@v2
-      with:
-        gradle-version: '2.14.1'
-        arguments: build --stacktrace --no-daemon
+      run: ./gradlew build --stacktrace --no-daemon
     
-    - name: Upload JAR
+    - name: Upload JAR artifact
       uses: actions/upload-artifact@v4
       with:
         name: YourSingularities
         path: build/libs/*.jar
+        if-no-files-found: error
