@@ -5,16 +5,13 @@ buildscript {
             name = "forge"
             url = "https://maven.minecraftforge.net/"
         }
-        maven {
-            url = "https://plugins.gradle.org/m2/"
-        }
     }
     dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-SNAPSHOT'
     }
 }
 
-apply plugin: 'forge'
+apply plugin: 'net.minecraftforge.gradle.forge'
 
 version = "1.0"
 group = "com.yoursingularities"
@@ -22,7 +19,10 @@ archivesBaseName = "yoursingularities"
 
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
-    runDir = "eclipse"
+    runDir = "run"
+    
+    // Для ForgeGradle 2.1
+    mappings = "stable_12"
 }
 
 repositories {
@@ -48,100 +48,3 @@ processResources {
         exclude 'mcmod.info'
     }
 }
-
-// ========== FIX FOR FORGEGRADLE 1.2 - USING LOCAL JAR ONLY ==========
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-
-// Отключаем все задачи загрузки
-tasks.downloadClient {
-    enabled = false
-    doLast {
-        println "DownloadClient disabled - using local JAR"
-    }
-}
-
-tasks.downloadServer {
-    enabled = false
-    doLast {
-        println "DownloadServer disabled - using local JAR"
-    }
-}
-
-tasks.getVersionJson {
-    enabled = false
-    doLast {
-        println "GetVersionJson disabled"
-    }
-}
-
-// Создаем задачу для подготовки файлов из локального JAR
-task setupMinecraftFiles {
-    doLast {
-        // Проверяем наличие локального JAR
-        def localJar = file("cache/1.7.10.jar")
-        if (!localJar.exists()) {
-            localJar = file("minecraft-1.7.10.jar")
-        }
-        if (!localJar.exists()) {
-            localJar = file("libs/minecraft-1.7.10.jar")
-        }
-        
-        if (!localJar.exists()) {
-            throw new GradleException("""
-                ❌ Minecraft JAR not found!
-                Please place minecraft-1.7.10.jar in one of these locations:
-                - cache/1.7.10.jar
-                - minecraft-1.7.10.jar
-                - libs/minecraft-1.7.10.jar
-                
-                Current directory contents:
-                ${file(".").listFiles().each { println "  ${it.name}" }}
-            """)
-        }
-        
-        println "✅ Found Minecraft JAR: ${localJar} (${localJar.length() / 1024 / 1024} MB)"
-        
-        // Создаем необходимые директории в Gradle кеше
-        def gradleClientDir = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft/1.7.10")
-        def gradleServerDir = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft_server/1.7.10")
-        
-        gradleClientDir.mkdirs()
-        gradleServerDir.mkdirs()
-        
-        // Копируем JAR в нужные места
-        def clientTarget = new File(gradleClientDir, "minecraft-1.7.10.jar")
-        def serverTarget = new File(gradleServerDir, "minecraft_server-1.7.10.jar")
-        def simpleTarget = new File(gradleClientDir, "1.7.10.jar")
-        
-        Files.copy(localJar.toPath(), clientTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        Files.copy(localJar.toPath(), serverTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        Files.copy(localJar.toPath(), simpleTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        
-        println "✅ Copied to: ${clientTarget}"
-        println "✅ Copied to: ${serverTarget}"
-        println "✅ Copied to: ${simpleTarget}"
-        
-        // Создаем минимальный version JSON
-        def jsonFile = new File(gradleClientDir, "1.7.10.json")
-        if (!jsonFile.exists()) {
-            jsonFile.text = '''{
-                "id": "1.7.10",
-                "type": "release",
-                "time": "2014-06-26T08:14:00+00:00",
-                "releaseTime": "2014-06-26T08:14:00+00:00",
-                "mainClass": "net.minecraft.client.main.Main",
-                "minecraftArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}",
-                "minimumLauncherVersion": 1,
-                "libraries": []
-            }'''
-            println "✅ Created version JSON"
-        }
-    }
-}
-
-// Зависимости задач
-tasks.mergeJars.dependsOn setupMinecraftFiles
-tasks.compileJava.dependsOn setupMinecraftFiles
-tasks.setupMinecraftFiles.mustRunAfter tasks.downloadClient
-tasks.setupMinecraftFiles.mustRunAfter tasks.downloadServer
