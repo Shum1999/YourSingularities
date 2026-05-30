@@ -48,3 +48,86 @@ processResources {
         exclude 'mcmod.info'
     }
 }
+
+// ========== FIX FOR DOWNLOADCLIENT TASK ==========
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+// Переопределяем задачу downloadClient
+tasks.downloadClient {
+    enabled = false
+    doLast {
+        // Создаем директорию для клиента
+        def clientDir = new File(buildDir, "mcp/minecraft/client")
+        clientDir.mkdirs()
+        
+        def targetFile = new File(clientDir, "minecraft.jar")
+        
+        // Пытаемся найти JAR файл в разных местах
+        def sourceJar = null
+        
+        // Проверяем кеш Gradle
+        def gradleCacheJar = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft/1.7.10/1.7.10.jar")
+        if (gradleCacheJar.exists()) {
+            sourceJar = gradleCacheJar
+            println "Found Minecraft JAR in Gradle cache"
+        }
+        
+        // Проверяем локальную папку cache
+        def localCacheJar = file("cache/1.7.10.jar")
+        if (!sourceJar && localCacheJar.exists()) {
+            sourceJar = localCacheJar
+            println "Found Minecraft JAR in local cache folder"
+        }
+        
+        // Проверяем другие имена
+        if (!sourceJar) {
+            def cacheDir = file("cache")
+            if (cacheDir.exists()) {
+                def jarFiles = fileTree(cacheDir).matching { include "**/*.jar" }
+                if (!jarFiles.isEmpty()) {
+                    sourceJar = jarFiles.first()
+                    println "Found Minecraft JAR: ${sourceJar.name}"
+                }
+            }
+        }
+        
+        // Копируем или скачиваем
+        if (sourceJar && sourceJar.exists()) {
+            println "Copying Minecraft JAR to ${targetFile}"
+            Files.copy(sourceJar.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            println "✓ Minecraft client prepared successfully"
+        } else {
+            println "Local JAR not found, downloading from Mojang..."
+            def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar"
+            new URL(url).withInputStream { input ->
+                Files.copy(input, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+            println "✓ Minecraft client downloaded successfully"
+        }
+    }
+}
+
+// Также исправляем downloadServer
+tasks.downloadServer {
+    enabled = false
+    dependsOn tasks.downloadClient
+    doLast {
+        def serverDir = new File(buildDir, "mcp/minecraft/server")
+        serverDir.mkdirs()
+        
+        def targetFile = new File(serverDir, "minecraft_server.jar")
+        def clientJar = new File(buildDir, "mcp/minecraft/client/minecraft.jar")
+        
+        if (clientJar.exists()) {
+            println "Using client JAR as server JAR (1.7.10 uses same JAR)"
+            Files.copy(clientJar.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } else {
+            def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/server.jar"
+            new URL(url).withInputStream { input ->
+                Files.copy(input, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+        println "✓ Minecraft server prepared successfully"
+    }
+}
