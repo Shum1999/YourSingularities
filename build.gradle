@@ -52,6 +52,33 @@ processResources {
 // ========== FIXES FOR FORGEGRADLE 1.2 ==========
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.zip.ZipFile
+
+// Функция проверки JAR файла
+def isValidJar(File file) {
+    if (!file.exists() || file.length() < 1000000) { // Минимум 1MB для Minecraft JAR
+        return false
+    }
+    try {
+        new ZipFile(file).close()
+        return true
+    } catch (Exception e) {
+        println "Invalid JAR: ${e.message}"
+        return false
+    }
+}
+
+// Функция скачивания JAR
+def downloadMinecraftJar(File targetFile) {
+    println "Downloading Minecraft 1.7.10 JAR from Mojang..."
+    def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar"
+    targetFile.parentFile.mkdirs()
+    new URL(url).withInputStream { input ->
+        Files.copy(input, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
+    println "Downloaded ${targetFile.length() / 1024 / 1024} MB"
+    return isValidJar(targetFile)
+}
 
 // Отключаем и переопределяем downloadClient
 tasks.downloadClient {
@@ -61,23 +88,37 @@ tasks.downloadClient {
         clientDir.mkdirs()
         def targetFile = new File(clientDir, "minecraft.jar")
         
-        def sourceJar = file("cache/1.7.10.jar")
-        if (!sourceJar.exists()) {
-            sourceJar = file("build/mcp/minecraft/client/minecraft.jar")
+        // Проверяем разные источники
+        def sourceJar = null
+        
+        // 1. Проверяем локальную папку cache
+        def localCacheJar = file("cache/1.7.10.jar")
+        if (isValidJar(localCacheJar)) {
+            sourceJar = localCacheJar
+            println "Using valid JAR from cache/1.7.10.jar"
         }
-        if (!sourceJar.exists()) {
-            sourceJar = file("cache/downloaded.jar")
-            sourceJar.parentFile.mkdirs()
-            println "Downloading from Mojang..."
-            def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar"
-            new URL(url).withInputStream { input ->
-                Files.copy(input, sourceJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        
+        // 2. Проверяем системный кеш Gradle
+        def gradleCacheJar = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar")
+        if (!sourceJar && isValidJar(gradleCacheJar)) {
+            sourceJar = gradleCacheJar
+            println "Using valid JAR from Gradle cache"
+        }
+        
+        // 3. Скачиваем заново если нужно
+        if (!sourceJar) {
+            def downloadedJar = file("cache/minecraft-downloaded.jar")
+            if (downloadMinecraftJar(downloadedJar)) {
+                sourceJar = downloadedJar
+            } else {
+                throw new GradleException("Failed to download valid Minecraft JAR")
             }
         }
         
-        if (sourceJar.exists()) {
+        // Копируем в нужное место
+        if (sourceJar && sourceJar.exists()) {
             Files.copy(sourceJar.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            println "✓ Client prepared"
+            println "✓ Client prepared (${targetFile.length() / 1024 / 1024} MB)"
         }
     }
 }
@@ -91,7 +132,7 @@ tasks.downloadServer {
         serverDir.mkdirs()
         def targetFile = new File(serverDir, "minecraft_server.jar")
         def clientJar = new File(buildDir, "mcp/minecraft/client/minecraft.jar")
-        if (clientJar.exists()) {
+        if (clientJar.exists() && isValidJar(clientJar)) {
             Files.copy(clientJar.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             println "✓ Server prepared"
         }
@@ -106,8 +147,19 @@ tasks.getVersionJson {
         jsonDir.mkdirs()
         def jsonFile = new File(jsonDir, "1.7.10.json")
         if (!jsonFile.exists()) {
-            jsonFile.text = '{"id":"1.7.10","type":"release"}'
+            println "Creating version JSON..."
+            jsonFile.text = '''{
+                "id": "1.7.10",
+                "type": "release",
+                "time": "2014-06-26T08:14:00+00:00",
+                "releaseTime": "2014-06-26T08:14:00+00:00",
+                "mainClass": "net.minecraft.client.main.Main",
+                "minecraftArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}",
+                "minimumLauncherVersion": 1,
+                "libraries": []
+            }'''
         }
+        println "✓ Version JSON prepared"
     }
 }
 
@@ -122,15 +174,41 @@ task setupMinecraftFiles {
         def clientTarget = new File(clientDir, "minecraft-1.7.10.jar")
         def serverTarget = new File(serverDir, "minecraft_server-1.7.10.jar")
         
-        def sourceJar = file("cache/1.7.10.jar")
-        if (!sourceJar.exists()) {
-            sourceJar = new File(buildDir, "mcp/minecraft/client/minecraft.jar")
+        // Ищем исходный JAR
+        def sourceJar = null
+        
+        // Проверяем build/mcp/minecraft/client/minecraft.jar
+        def buildJar = new File(buildDir, "mcp/minecraft/client/minecraft.jar")
+        if (isValidJar(buildJar)) {
+            sourceJar = buildJar
+            println "Using JAR from build/mcp/minecraft/client/minecraft.jar"
         }
         
-        if (sourceJar.exists()) {
+        // Проверяем cache/1.7.10.jar
+        if (!sourceJar) {
+            def cacheJar = file("cache/1.7.10.jar")
+            if (isValidJar(cacheJar)) {
+                sourceJar = cacheJar
+                println "Using JAR from cache/1.7.10.jar"
+            }
+        }
+        
+        // Скачиваем если ничего не подошло
+        if (!sourceJar) {
+            def freshJar = file("cache/fresh-1.7.10.jar")
+            if (downloadMinecraftJar(freshJar)) {
+                sourceJar = freshJar
+            }
+        }
+        
+        if (sourceJar && sourceJar.exists()) {
             Files.copy(sourceJar.toPath(), clientTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
             Files.copy(sourceJar.toPath(), serverTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
             println "✓ Minecraft files set up for mergeJars"
+            println "  Client: ${clientTarget.length() / 1024 / 1024} MB"
+            println "  Server: ${serverTarget.length() / 1024 / 1024} MB"
+        } else {
+            throw new GradleException("No valid Minecraft JAR found or downloaded")
         }
     }
 }
