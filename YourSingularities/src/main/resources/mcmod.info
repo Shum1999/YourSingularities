@@ -1,9 +1,0 @@
-[{
-  "modid": "yoursingularities",
-  "name": "Your Singularities",
-  "description": "Customizable singularities mod",
-  "version": "1.0",
-  "mcversion": "1.7.10",
-  "authorList": ["You"],
-  "dependencies": []
-}]
