@@ -23,10 +23,6 @@ archivesBaseName = "yoursingularities"
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
     runDir = "run"
-    
-    // Замена официального URL на работающее зеркало
-    clientJson = "https://piston-data.mojang.com/v1/objects/1c3c0b3f5f6c9c8d9e0a1b2c3d4e5f6a7b8c9d0e/1.7.10.json"
-    serverJson = "https://piston-data.mojang.com/v1/objects/1c3c0b3f5f6c9c8d9e0a1b2c3d4e5f6a7b8c9d0e/1.7.10.json"
 }
 
 repositories {
