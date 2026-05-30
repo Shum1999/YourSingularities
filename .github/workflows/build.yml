@@ -3,6 +3,8 @@ name: Build Forge 1.7.10 Mod
 on:
   push:
     branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -22,56 +24,62 @@ jobs:
       uses: actions/cache@v4
       id: minecraft-cache
       with:
-        path: cache
-        key: minecraft-1.7.10-jar-v2
+        path: |
+          cache
+          ~/.gradle/caches/minecraft
+        key: minecraft-1.7.10-jar-v4
     
-    - name: Download Minecraft 1.7.10 JAR from mirror
+    - name: Download Minecraft JAR from Yandex Disk
       if: steps.minecraft-cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p cache
         
-        # Список зеркал для скачивания
-        MIRRORS=(
-          "https://bmclapi2.bangbang93.com/version/1.7.10/client"
-          "https://download.mcverses.com/1.7.10/1.7.10.jar"
-          "https://repo.huaweicloud.com/java/minecraft/versions/1.7.10/1.7.10.jar"
-          "https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar"
-        )
+        # Получаем прямую ссылку на скачивание с Яндекс.Диска
+        echo "Getting download link from Yandex Disk..."
         
-        for MIRROR in "${MIRRORS[@]}"; do
-          echo "Trying: $MIRROR"
-          curl -L -o cache/1.7.10.jar "$MIRROR" --max-time 30
+        # Используем публичную ссылку и получаем прямую ссылку для скачивания
+        SHARE_URL="https://disk.yandex.ru/d/aBiUwC4oR4S1fA"
+        
+        # Получаем реальный URL для скачивания
+        DOWNLOAD_URL=$(curl -s -L -I -o /dev/null -w '%{url_effective}' "$SHARE_URL" | grep -o 'https://[^"]*' | head -1 || true)
+        
+        if [ -z "$DOWNLOAD_URL" ]; then
+          # Альтернативный метод - используем API Яндекс.Диска
+          curl -L -o cache/1.7.10.jar "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=$SHARE_URL" 2>/dev/null || true
           
-          # Проверяем размер (должен быть > 1MB)
-          if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 1000000 ]; then
-            if file cache/1.7.10.jar | grep -q "Zip archive"; then
-              echo "✅ Successfully downloaded from $MIRROR"
-              ls -lh cache/1.7.10.jar
-              break
+          # Если есть JSON ответ, извлекаем ссылку
+          if [ -f cache/1.7.10.jar ]; then
+            DOWNLOAD_URL=$(cat cache/1.7.10.jar | grep -o '"href":"[^"]*"' | cut -d'"' -f4 | sed 's/\\//g')
+            if [ -n "$DOWNLOAD_URL" ]; then
+              curl -L -o cache/1.7.10.jar "$DOWNLOAD_URL"
             fi
           fi
-          echo "Failed from $MIRROR, trying next..."
-          rm -f cache/1.7.10.jar
-        done
+        fi
         
-        # Если всё ещё нет файла, создаем заглушку (не для реальной сборки, но для CI)
-        if [ ! -f cache/1.7.10.jar ] || [ $(stat -c%s "cache/1.7.10.jar") -lt 1000000 ]; then
-          echo "⚠️ Could not download real JAR, will try to use ForgeGradle's built-in download"
-          # Удаляем кеш, чтобы ForgeGradle попробовал свой метод
-          rm -rf cache/1.7.10.jar
-          rm -rf ~/.gradle/caches/minecraft
+        # Проверяем результат
+        if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 5000000 ]; then
+          echo "✅ JAR downloaded successfully from Yandex Disk"
+          ls -lh cache/1.7.10.jar
+          file cache/1.7.10.jar
+        else
+          echo "Failed to download from Yandex Disk, trying alternative method..."
+          # Простой curl с прямой ссылкой (нужно получить прямую ссылку вручную)
+          echo "Please get direct download link from Yandex Disk and update the workflow"
+          exit 1
         fi
     
-    - name: Setup Gradle cache directories
+    - name: Setup Gradle cache with JAR
       run: |
-        # Если есть скачанный JAR, копируем его
-        if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 1000000 ]; then
+        if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 5000000 ]; then
           mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
           mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
           
           cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
           cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar
-          echo "✅ JAR files copied to Gradle cache"
+          
+          echo "✅ JAR copied to Gradle cache"
+        else
+          echo "⚠️ No valid JAR found"
         fi
     
     - name: Make gradlew executable
