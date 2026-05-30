@@ -6,11 +6,11 @@ buildscript {
             url = "https://maven.minecraftforge.net/"
         }
         maven {
-            url = "https://jitpack.io"
+            url = "https://plugins.gradle.org/m2/"
         }
     }
     dependencies {
-        classpath 'com.github.GTNewHorizons:ForgeGradle:1.2.11'
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
     }
 }
 
@@ -23,7 +23,6 @@ archivesBaseName = "yoursingularities"
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
     runDir = "run"
-    mappings = "stable_12"
 }
 
 repositories {
@@ -31,7 +30,6 @@ repositories {
         name = "chickenbones"
         url = "https://chickenbones.net/maven"
     }
-    mavenCentral()
 }
 
 dependencies {
