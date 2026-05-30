@@ -1,133 +1,83 @@
-buildscript {
-    repositories {
-        mavenCentral()
-        maven {
-            name = "forge"
-            url = "https://maven.minecraftforge.net/"
-        }
-        maven {
-            url = "https://plugins.gradle.org/m2/"
-        }
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
-    }
-}
+// ... ваш существующий build.gradle выше ...
 
-apply plugin: 'forge'
-
-version = "1.0"
-group = "com.yoursingularities"
-archivesBaseName = "yoursingularities"
-
-minecraft {
-    version = "1.7.10-10.13.4.1614-1.7.10"
-    runDir = "eclipse"
-}
-
-repositories {
-    maven {
-        name = "chickenbones"
-        url = "https://chickenbones.net/maven"
-    }
-}
-
-dependencies {
-    compile "codechicken:NotEnoughItems:1.7.10-1.0.5.120:dev"
-    compile "codechicken:CodeChickenCore:1.7.10-1.0.7.47:dev"
-}
-
-processResources {
-    inputs.property "version", project.version
-    inputs.property "mcversion", project.minecraft.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        expand 'version':project.version, 'mcversion':project.minecraft.version
-    }
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
-    }
-}
-
-// ========== FIX FOR DOWNLOADCLIENT TASK ==========
+// ========== FIX FOR MERGEJARS TASK ==========
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-// Переопределяем задачу downloadClient
-tasks.downloadClient {
-    enabled = false
+// Создаем необходимые файлы для mergeJars
+task setupMinecraftFiles {
     doLast {
-        // Создаем директорию для клиента
-        def clientDir = new File(buildDir, "mcp/minecraft/client")
+        // Создаем директории
+        def clientDir = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft/1.7.10")
+        def serverDir = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft_server/1.7.10")
         clientDir.mkdirs()
+        serverDir.mkdirs()
         
-        def targetFile = new File(clientDir, "minecraft.jar")
+        def clientTarget = new File(clientDir, "minecraft-1.7.10.jar")
+        def serverTarget = new File(serverDir, "minecraft_server-1.7.10.jar")
         
-        // Пытаемся найти JAR файл в разных местах
+        // Ищем исходный JAR
         def sourceJar = null
-        
-        // Проверяем кеш Gradle
-        def gradleCacheJar = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft/1.7.10/1.7.10.jar")
-        if (gradleCacheJar.exists()) {
-            sourceJar = gradleCacheJar
-            println "Found Minecraft JAR in Gradle cache"
-        }
         
         // Проверяем локальную папку cache
         def localCacheJar = file("cache/1.7.10.jar")
-        if (!sourceJar && localCacheJar.exists()) {
+        if (localCacheJar.exists()) {
             sourceJar = localCacheJar
-            println "Found Minecraft JAR in local cache folder"
+            println "Found JAR in cache/1.7.10.jar"
         }
         
-        // Проверяем другие имена
+        // Проверяем build/mcp/minecraft/client
+        def buildClientJar = file("build/mcp/minecraft/client/minecraft.jar")
+        if (!sourceJar && buildClientJar.exists()) {
+            sourceJar = buildClientJar
+            println "Found JAR in build/mcp/minecraft/client/minecraft.jar"
+        }
+        
+        // Скачиваем если не нашли
         if (!sourceJar) {
-            def cacheDir = file("cache")
-            if (cacheDir.exists()) {
-                def jarFiles = fileTree(cacheDir).matching { include "**/*.jar" }
-                if (!jarFiles.isEmpty()) {
-                    sourceJar = jarFiles.first()
-                    println "Found Minecraft JAR: ${sourceJar.name}"
-                }
+            println "Downloading Minecraft JAR from Mojang..."
+            def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar"
+            sourceJar = file("cache/downloaded.jar")
+            sourceJar.parentFile.mkdirs()
+            new URL(url).withInputStream { input ->
+                Files.copy(input, sourceJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         }
         
-        // Копируем или скачиваем
+        // Копируем в нужные места
         if (sourceJar && sourceJar.exists()) {
-            println "Copying Minecraft JAR to ${targetFile}"
-            Files.copy(sourceJar.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            println "✓ Minecraft client prepared successfully"
+            println "Copying to ${clientTarget}"
+            Files.copy(sourceJar.toPath(), clientTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            
+            println "Copying to ${serverTarget}"
+            Files.copy(sourceJar.toPath(), serverTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            
+            println "✓ Minecraft files prepared successfully"
         } else {
-            println "Local JAR not found, downloading from Mojang..."
-            def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar"
-            new URL(url).withInputStream { input ->
-                Files.copy(input, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
-            println "✓ Minecraft client downloaded successfully"
+            throw new GradleException("Could not find or download Minecraft JAR")
         }
     }
 }
 
-// Также исправляем downloadServer
-tasks.downloadServer {
+// Также перехватываем getVersionJson (он пытается скачать JSON)
+tasks.getVersionJson {
     enabled = false
-    dependsOn tasks.downloadClient
     doLast {
-        def serverDir = new File(buildDir, "mcp/minecraft/server")
-        serverDir.mkdirs()
+        def jsonDir = new File(gradle.gradleUserHomeDir, "caches/minecraft/net/minecraft/minecraft/1.7.10")
+        jsonDir.mkdirs()
+        def jsonFile = new File(jsonDir, "1.7.10.json")
         
-        def targetFile = new File(serverDir, "minecraft_server.jar")
-        def clientJar = new File(buildDir, "mcp/minecraft/client/minecraft.jar")
-        
-        if (clientJar.exists()) {
-            println "Using client JAR as server JAR (1.7.10 uses same JAR)"
-            Files.copy(clientJar.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        } else {
-            def url = "https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/server.jar"
-            new URL(url).withInputStream { input ->
-                Files.copy(input, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
+        if (!jsonFile.exists()) {
+            println "Downloading version JSON..."
+            def url = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+            // Создаем простой JSON для 1.7.10
+            jsonFile.text = '{"id":"1.7.10","type":"release","time":"2014-06-26T08:14:00+00:00","releaseTime":"2014-06-26T08:14:00+00:00"}'
         }
-        println "✓ Minecraft server prepared successfully"
+        println "✓ Version JSON prepared"
     }
 }
+
+// Зависимости задач
+tasks.mergeJars.dependsOn setupMinecraftFiles
+tasks.setupMinecraftFiles.mustRunAfter tasks.downloadClient
+tasks.setupMinecraftFiles.mustRunAfter tasks.downloadServer
