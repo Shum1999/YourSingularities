@@ -42,33 +42,7 @@ repositories {
 
 dependencies {
     provided "codechicken:NotEnoughItems:1.7.10-1.0.5.120:dev"
-    
-📝 Где именно искать
-Ошибка указывает на строку 44 в файле build.gradle. Посмотри в этой области:
-
-gradle
-dependencies {
-    provided "codechicken:NotEnoughItems:1.7.10-1.0.5.120:dev"
     provided "codechicken:CodeChickenCore:1.7.10-1.0.7.47:dev"
-}
-🚀 Как исправить через GitHub
-Перейди в твой репозиторий: https://github.com/Shum1999/YourSingularities
-
-Найди файл build.gradle
-
-Нажми на карандаш (Edit)
-
-Замени compileOnly на provided
-
-Нажми "Commit changes"
-
-⏳ После исправления
-Сборка запустится автоматически. Через 5-10 минут готовый мод появится в Actions → Artifacts.
-
-💡 Если будет другая ошибка
-Покажи её — исправим дальше. Сейчас главное — убрать compileOnly.
-
-
 }
 
 // Отключаем строгую проверку, чтобы избежать ошибок с устаревшими зависимостями
