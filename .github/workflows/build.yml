@@ -20,70 +20,31 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Cache Minecraft JAR
-      uses: actions/cache@v4
-      id: minecraft-cache
-      with:
-        path: |
-          cache
-          ~/.gradle/caches/minecraft
-        key: minecraft-1.7.10-jar-v4
-    
-    - name: Download Minecraft JAR from Yandex Disk
-      if: steps.minecraft-cache.outputs.cache-hit != 'true'
+    - name: Setup Gradle cache with local JAR
       run: |
-        mkdir -p cache
-        
-        # Получаем прямую ссылку на скачивание с Яндекс.Диска
-        echo "Getting download link from Yandex Disk..."
-        
-        # Используем публичную ссылку и получаем прямую ссылку для скачивания
-        SHARE_URL="https://disk.yandex.ru/d/aBiUwC4oR4S1fA"
-        
-        # Получаем реальный URL для скачивания
-        DOWNLOAD_URL=$(curl -s -L -I -o /dev/null -w '%{url_effective}' "$SHARE_URL" | grep -o 'https://[^"]*' | head -1 || true)
-        
-        if [ -z "$DOWNLOAD_URL" ]; then
-          # Альтернативный метод - используем API Яндекс.Диска
-          curl -L -o cache/1.7.10.jar "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=$SHARE_URL" 2>/dev/null || true
-          
-          # Если есть JSON ответ, извлекаем ссылку
-          if [ -f cache/1.7.10.jar ]; then
-            DOWNLOAD_URL=$(cat cache/1.7.10.jar | grep -o '"href":"[^"]*"' | cut -d'"' -f4 | sed 's/\\//g')
-            if [ -n "$DOWNLOAD_URL" ]; then
-              curl -L -o cache/1.7.10.jar "$DOWNLOAD_URL"
-            fi
-          fi
-        fi
-        
-        # Проверяем результат
-        if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 5000000 ]; then
-          echo "✅ JAR downloaded successfully from Yandex Disk"
-          ls -lh cache/1.7.10.jar
-          file cache/1.7.10.jar
-        else
-          echo "Failed to download from Yandex Disk, trying alternative method..."
-          # Простой curl с прямой ссылкой (нужно получить прямую ссылку вручную)
-          echo "Please get direct download link from Yandex Disk and update the workflow"
+        # Проверяем наличие JAR
+        if [ ! -f cache/1.7.10.jar ]; then
+          echo "❌ cache/1.7.10.jar not found!"
+          ls -la cache/
           exit 1
         fi
-    
-    - name: Setup Gradle cache with JAR
-      run: |
-        if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 5000000 ]; then
-          mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
-          mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
-          
-          cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
-          cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar
-          
-          echo "✅ JAR copied to Gradle cache"
-        else
-          echo "⚠️ No valid JAR found"
-        fi
+        
+        # Создаем директории для Gradle кеша
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
+        
+        # Копируем JAR в нужные места
+        cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
+        cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar
+        
+        echo "✅ JAR copied to Gradle cache"
+        ls -lh ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
     
     - name: Make gradlew executable
       run: chmod +x gradlew
+    
+    - name: Clean previous builds
+      run: ./gradlew clean --no-daemon || true
     
     - name: Build with Gradle
       run: ./gradlew build --stacktrace --no-daemon
@@ -94,3 +55,10 @@ jobs:
         name: YourSingularities
         path: build/libs/*.jar
         if-no-files-found: error
+    
+    - name: Upload to GitHub Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/libs/*.jar
+        generate_release_notes: true
