@@ -68,7 +68,7 @@ tasks.getVersionJson {
     }
 }
 
-// Подготавливаем локальные файлы
+// ========== ПОДГОТАВЛИВАЕМ ЛОКАЛЬНЫЕ ФАЙЛЫ ==========
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
@@ -89,12 +89,12 @@ task prepareMinecraftFiles {
         clientDir.mkdirs()
         serverDir.mkdirs()
         
-        // Копируем в нужные места
+        // Копируем клиентский JAR в нужные места
         Files.copy(localJar.toPath(), new File(clientDir, "minecraft-1.7.10.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
         Files.copy(localJar.toPath(), new File(serverDir, "minecraft_server-1.7.10.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
         Files.copy(localJar.toPath(), new File(clientDir, "1.7.10.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
         
-        // Создаём JSON
+        // Создаём JSON файл
         def jsonFile = new File(clientDir, "1.7.10.json")
         jsonFile.text = '{"id":"1.7.10","type":"release","minecraftArguments":"--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}","libraries":[]}'
         
