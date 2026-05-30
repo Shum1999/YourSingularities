@@ -3,8 +3,6 @@ name: Build Forge 1.7.10 Mod
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -20,34 +18,16 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Setup Gradle cache with local JAR
+    - name: Clean Gradle cache (fix partial downloads)
       run: |
-        # Проверяем наличие JAR
-        if [ ! -f cache/1.7.10.jar ]; then
-          echo "❌ cache/1.7.10.jar not found!"
-          ls -la cache/
-          exit 1
-        fi
-        
-        # Создаем директории для Gradle кеша
-        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
-        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
-        
-        # Копируем JAR в нужные места
-        cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
-        cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar
-        
-        echo "✅ JAR copied to Gradle cache"
-        ls -lh ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+        rm -rf ~/.gradle/caches/minecraft/net/minecraftforge/forge/
+        rm -rf ~/.gradle/caches/minecraft/net/minecraft/
     
     - name: Make gradlew executable
       run: chmod +x gradlew
     
-    - name: Clean previous builds
-      run: ./gradlew clean --no-daemon || true
-    
     - name: Build with Gradle
-      run: ./gradlew build --stacktrace --no-daemon
+      run: ./gradlew build --stacktrace --no-daemon --info
     
     - name: Upload JAR artifact
       uses: actions/upload-artifact@v4
@@ -55,10 +35,3 @@ jobs:
         name: YourSingularities
         path: build/libs/*.jar
         if-no-files-found: error
-    
-    - name: Upload to GitHub Release (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: build/libs/*.jar
-        generate_release_notes: true
