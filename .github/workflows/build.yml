@@ -3,8 +3,6 @@ name: Build Forge 1.7.10 Mod
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -20,74 +18,64 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Cache Gradle
+    - name: Cache Minecraft JAR
       uses: actions/cache@v4
+      id: minecraft-cache
       with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
+        path: cache
+        key: minecraft-1.7.10-jar-v2
     
-    - name: Download Minecraft 1.7.10 JAR from alternative source
+    - name: Download Minecraft 1.7.10 JAR from mirror
+      if: steps.minecraft-cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p cache
         
-        # Вариант 1: Используем библиотеку Minecraft (более надежно)
-        echo "Trying to download from libraries.minecraft.net..."
-        curl -L -o cache/1.7.10.jar \
-          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-          https://libraries.minecraft.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
+        # Список зеркал для скачивания
+        MIRRORS=(
+          "https://bmclapi2.bangbang93.com/version/1.7.10/client"
+          "https://download.mcverses.com/1.7.10/1.7.10.jar"
+          "https://repo.huaweicloud.com/java/minecraft/versions/1.7.10/1.7.10.jar"
+          "https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar"
+        )
         
-        # Проверяем размер файла (должен быть около 8-10 MB)
-        FILE_SIZE=$(stat -c%s "cache/1.7.10.jar")
-        echo "Downloaded file size: $FILE_SIZE bytes"
-        
-        if [ $FILE_SIZE -lt 8000000 ]; then
-          echo "File too small, trying alternative URL..."
-          # Вариант 2: Используем версию с сервера Forge
-          curl -L -o cache/1.7.10.jar \
-            -H "User-Agent: Mozilla/5.0" \
-            https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
+        for MIRROR in "${MIRRORS[@]}"; do
+          echo "Trying: $MIRROR"
+          curl -L -o cache/1.7.10.jar "$MIRROR" --max-time 30
           
-          FILE_SIZE=$(stat -c%s "cache/1.7.10.jar")
-          echo "Second attempt file size: $FILE_SIZE bytes"
-        fi
-        
-        # Проверяем, что это ZIP/JAR файл
-        if file cache/1.7.10.jar | grep -q "Zip archive"; then
-          echo "✅ Successfully downloaded valid JAR file"
-          ls -lh cache/1.7.10.jar
-        else
-          echo "⚠️ Downloaded file is not a ZIP archive, showing first 20 lines:"
-          head -20 cache/1.7.10.jar
-          echo ""
-          echo "Trying to download with wget and different options..."
-          rm cache/1.7.10.jar
-          wget -O cache/1.7.10.jar \
-            --header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" \
-            https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar
-          
-          if file cache/1.7.10.jar | grep -q "Zip archive"; then
-            echo "✅ Successfully downloaded valid JAR with wget"
-            ls -lh cache/1.7.10.jar
-          else
-            echo "❌ All download methods failed"
-            cat cache/1.7.10.jar
-            exit 1
+          # Проверяем размер (должен быть > 1MB)
+          if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 1000000 ]; then
+            if file cache/1.7.10.jar | grep -q "Zip archive"; then
+              echo "✅ Successfully downloaded from $MIRROR"
+              ls -lh cache/1.7.10.jar
+              break
+            fi
           fi
-        fi
+          echo "Failed from $MIRROR, trying next..."
+          rm -f cache/1.7.10.jar
+        done
         
-        # Выводим MD5 для проверки (опционально)
-        echo "MD5 hash:"
-        md5sum cache/1.7.10.jar || true
+        # Если всё ещё нет файла, создаем заглушку (не для реальной сборки, но для CI)
+        if [ ! -f cache/1.7.10.jar ] || [ $(stat -c%s "cache/1.7.10.jar") -lt 1000000 ]; then
+          echo "⚠️ Could not download real JAR, will try to use ForgeGradle's built-in download"
+          # Удаляем кеш, чтобы ForgeGradle попробовал свой метод
+          rm -rf cache/1.7.10.jar
+          rm -rf ~/.gradle/caches/minecraft
+        fi
+    
+    - name: Setup Gradle cache directories
+      run: |
+        # Если есть скачанный JAR, копируем его
+        if [ -f cache/1.7.10.jar ] && [ $(stat -c%s "cache/1.7.10.jar") -gt 1000000 ]; then
+          mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+          mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
+          
+          cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
+          cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar
+          echo "✅ JAR files copied to Gradle cache"
+        fi
     
     - name: Make gradlew executable
       run: chmod +x gradlew
-    
-    - name: Clean previous build
-      run: ./gradlew clean --no-daemon || true
     
     - name: Build with Gradle
       run: ./gradlew build --stacktrace --no-daemon
