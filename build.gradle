@@ -23,10 +23,6 @@ archivesBaseName = "yoursingularities"
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
     runDir = "eclipse"
-    
-    // Перенаправляем на локальную папку cache
-    clientDownloadUrl = "https://disk.yandex.ru/d/aBiUwC4oR4S1fA"
-    serverDownloadUrl = "https://disk.yandex.ru/d/aBiUwC4oR4S1fA"
 }
 
 repositories {
