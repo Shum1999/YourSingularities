@@ -18,32 +18,26 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Setup Minecraft and Forge cache
+    - name: Download Minecraft JAR from Forge Maven
       run: |
-        # Создаём директории
-        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
-        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
+        mkdir -p cache
         
-        # Скачиваем Minecraft JAR с Forge Maven
-        echo "Downloading Minecraft JAR..."
-        curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar \
+        echo "Downloading Minecraft 1.7.10 JAR from Forge Maven..."
+        curl -L -o cache/1.7.10.jar \
           "https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar"
         
-        curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar \
-          "https://maven.minecraftforge.net/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar"
+        # Проверяем размер
+        SIZE=$(stat -c%s "cache/1.7.10.jar")
+        echo "Downloaded file size: $SIZE bytes"
         
-        # Создаём JSON файл
-        cat > ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/1.7.10.json << 'EOF'
-        {
-          "id": "1.7.10",
-          "type": "release",
-          "minecraftArguments": "--username \${auth_player_name} --version \${version_name} --gameDir \${game_directory} --assetsDir \${assets_root} --assetIndex \${assets_index_name} --uuid \${auth_uuid} --accessToken \${auth_access_token} --userProperties \${user_properties} --userType \${user_type}",
-          "libraries": []
-        }
-        EOF
+        if [ $SIZE -lt 8000000 ]; then
+          echo "❌ File too small, download failed"
+          exit 1
+        fi
         
-        echo "✅ Minecraft files prepared"
-        ls -la ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+        echo "✅ Valid JAR downloaded"
+        ls -lh cache/1.7.10.jar
+        file cache/1.7.10.jar
     
     - name: Make gradlew executable
       run: chmod +x gradlew
