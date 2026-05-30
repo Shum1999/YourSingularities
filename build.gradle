@@ -45,3 +45,64 @@ processResources {
         exclude 'mcmod.info'
     }
 }
+
+// ========== ОТКЛЮЧАЕМ ЗАДАЧИ ЗАГРУЗКИ ==========
+tasks.downloadClient {
+    enabled = false
+    doLast {
+        println "DownloadClient disabled - using local JAR"
+    }
+}
+
+tasks.downloadServer {
+    enabled = false
+    doLast {
+        println "DownloadServer disabled - using local JAR"
+    }
+}
+
+tasks.getVersionJson {
+    enabled = false
+    doLast {
+        println "GetVersionJson disabled"
+    }
+}
+
+// Подготавливаем локальные файлы
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+task prepareMinecraftFiles {
+    doLast {
+        def localJar = file("cache/1.7.10.jar")
+        
+        if (!localJar.exists()) {
+            throw new GradleException("cache/1.7.10.jar not found! Please add the Minecraft JAR to the cache folder.")
+        }
+        
+        println "Using local JAR: ${localJar.length() / 1024 / 1024} MB"
+        
+        def gradleCache = gradle.gradleUserHomeDir
+        def clientDir = new File(gradleCache, "caches/minecraft/net/minecraft/minecraft/1.7.10")
+        def serverDir = new File(gradleCache, "caches/minecraft/net/minecraft/minecraft_server/1.7.10")
+        
+        clientDir.mkdirs()
+        serverDir.mkdirs()
+        
+        // Копируем в нужные места
+        Files.copy(localJar.toPath(), new File(clientDir, "minecraft-1.7.10.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(localJar.toPath(), new File(serverDir, "minecraft_server-1.7.10.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(localJar.toPath(), new File(clientDir, "1.7.10.jar").toPath(), StandardCopyOption.REPLACE_EXISTING)
+        
+        // Создаём JSON
+        def jsonFile = new File(clientDir, "1.7.10.json")
+        jsonFile.text = '{"id":"1.7.10","type":"release","minecraftArguments":"--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}","libraries":[]}'
+        
+        println "Minecraft files prepared"
+    }
+}
+
+// Заставляем задачи сборки зависеть от нашей подготовки
+tasks.mergeJars.dependsOn prepareMinecraftFiles
+tasks.compileJava.dependsOn prepareMinecraftFiles
+tasks.mergeJars.mustRunAfter prepareMinecraftFiles
