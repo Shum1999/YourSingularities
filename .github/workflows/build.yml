@@ -30,13 +30,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
     
-    - name: Download Minecraft JAR (backup method)
+    - name: Pre-download Minecraft JAR
       run: |
-        # Скачиваем заранее
         mkdir -p cache
-        curl -L -o cache/1.7.10.jar \
-          https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar
-        echo "✅ Minecraft JAR downloaded to cache/1.7.10.jar"
+        if [ ! -f cache/1.7.10.jar ]; then
+          curl -L -o cache/1.7.10.jar \
+            https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar
+          echo "Downloaded Minecraft 1.7.10 JAR"
+        else
+          echo "Using cached Minecraft JAR"
+        fi
         ls -lh cache/
     
     - name: Make gradlew executable
