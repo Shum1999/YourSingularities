@@ -18,16 +18,32 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Clean Gradle cache (fix partial downloads)
+    - name: Clean old cache
       run: |
         rm -rf ~/.gradle/caches/minecraft/net/minecraftforge/forge/
         rm -rf ~/.gradle/caches/minecraft/net/minecraft/
+    
+    - name: Pre-download Forge userdev
+      run: |
+        # Скачиваем Forge userdev JAR заранее
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/
+        cd ~/.gradle/caches/minecraft/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/
+        
+        wget -O forge-userdev.jar "https://maven.minecraftforge.net/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/forge-1.7.10-10.13.4.1614-1.7.10-userdev.jar"
+        
+        # Распаковываем
+        mkdir -p userdev
+        cd userdev
+        unzip -o ../forge-userdev.jar || true
+        
+        echo "Forge userdev prepared"
+        ls -la
     
     - name: Make gradlew executable
       run: chmod +x gradlew
     
     - name: Build with Gradle
-      run: ./gradlew build --stacktrace --no-daemon --info
+      run: ./gradlew build --stacktrace --no-daemon
     
     - name: Upload JAR artifact
       uses: actions/upload-artifact@v4
