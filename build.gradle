@@ -46,3 +46,45 @@ processResources {
         exclude 'mcmod.info'
     }
 }
+
+// Обходной путь для проблемы с extractUserdev
+import java.util.concurrent.TimeUnit
+
+tasks.extractUserdev {
+    doLast {
+        // Ждём пока файл загрузится
+        def forgeDir = file("${gradle.gradleUserHomeDir}/caches/minecraft/net/minecraftforge/forge/${minecraft.version}/userdev")
+        def classesJar = file("${forgeDir}/classes.jar")
+        
+        println "Waiting for Forge userdev files to be ready..."
+        int retries = 0
+        while (!classesJar.exists() && retries < 30) {
+            Thread.sleep(1000)
+            retries++
+            if (retries % 5 == 0) {
+                println "Still waiting... (${retries} seconds)"
+            }
+        }
+        
+        if (classesJar.exists()) {
+            println "✅ Forge classes.jar found"
+        } else {
+            println "⚠️ Forge classes.jar not found after waiting"
+        }
+    }
+}
+
+// Также исправляем applyBinaryPatches
+tasks.applyBinaryPatches {
+    dependsOn tasks.extractUserdev
+    doFirst {
+        def forgeDir = file("${gradle.gradleUserHomeDir}/caches/minecraft/net/minecraftforge/forge/${minecraft.version}/userdev")
+        def classesJar = file("${forgeDir}/classes.jar")
+        
+        if (!classesJar.exists()) {
+            println "Forcing extractUserdev to run..."
+            tasks.extractUserdev.execute()
+            Thread.sleep(5000)
+        }
+    }
+}
