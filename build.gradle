@@ -23,11 +23,7 @@ archivesBaseName = "yoursingularities"
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
     runDir = "eclipse"
-    
-    // Перенаправляем на локальную папку cache
-    clientDownloadUrl = "file:///${projectDir}/cache/minecraft-1.7.10-client.jar"
-    serverDownloadUrl = "file:///${projectDir}/cache/minecraft-1.7.10-client.jar"
-}  // <-- Убрал лишнюю скобку здесь
+}  // Убрали clientDownloadUrl и serverDownloadUrl
 
 repositories {
     maven {
