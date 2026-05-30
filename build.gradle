@@ -3,11 +3,14 @@ buildscript {
         mavenCentral()
         maven {
             name = "forge"
-            url = "https://maven.minecraftforge.net/"  // ← ЗАМЕНЕНО: новый URL
+            url = "https://maven.minecraftforge.net/"
+        }
+        maven {
+            url = "https://jitpack.io"
         }
     }
     dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:1.2-SNAPSHOT'
+        classpath 'com.github.GTNewHorizons:ForgeGradle:1.2.11'
     }
 }
 
@@ -17,14 +20,9 @@ version = "1.0"
 group = "com.yoursingularities"
 archivesBaseName = "yoursingularities"
 
-// ВАЖНО: совместимость с Java 8+
-sourceCompatibility = targetCompatibility = 1.8
-
 minecraft {
     version = "1.7.10-10.13.4.1614-1.7.10"
-    runDir = "eclipse"
-    
-    // Замена старого MCP на стабильную версию
+    runDir = "run"
     mappings = "stable_12"
 }
 
@@ -33,23 +31,12 @@ repositories {
         name = "chickenbones"
         url = "https://chickenbones.net/maven"
     }
-    // Добавляем резервный репозиторий
-    maven {
-        name = "CurseMaven"
-        url = "https://www.cursemaven.com"
-    }
+    mavenCentral()
 }
 
 dependencies {
-    provided "codechicken:NotEnoughItems:1.7.10-1.0.5.120:dev"
-    provided "codechicken:CodeChickenCore:1.7.10-1.0.7.47:dev"
-}
-
-// Отключаем строгую проверку, чтобы избежать ошибок с устаревшими зависимостями
-configurations.all {
-    resolutionStrategy {
-        force 'com.google.code.findbugs:jsr305:3.0.2'
-    }
+    compile "codechicken:NotEnoughItems:1.7.10-1.0.5.120:dev"
+    compile "codechicken:CodeChickenCore:1.7.10-1.0.7.47:dev"
 }
 
 processResources {
