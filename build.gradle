@@ -27,8 +27,7 @@ minecraft {
     // Перенаправляем на локальную папку cache
     clientDownloadUrl = "file:///${projectDir}/cache/minecraft-1.7.10-client.jar"
     serverDownloadUrl = "file:///${projectDir}/cache/minecraft-1.7.10-client.jar"
-}
-}
+}  // <-- Убрал лишнюю скобку здесь
 
 repositories {
     maven {
