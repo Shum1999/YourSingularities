@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # позволяет запускать вручную
+  workflow_dispatch:
 
 jobs:
   build:
@@ -30,24 +30,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
     
-    - name: Download Minecraft 1.7.10 JAR
+    - name: Download Minecraft JAR (backup method)
       run: |
-        # Создаем директорию для кеша Minecraft
-        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
-        
-        # Скачиваем с правильного URL Mojang
-        echo "Downloading Minecraft 1.7.10 client from Mojang..."
-        curl -L -o ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/1.7.10.jar \
+        # Скачиваем заранее
+        mkdir -p cache
+        curl -L -o cache/1.7.10.jar \
           https://launcher.mojang.com/v1/objects/4d2426c450addf63dee0d0735008caaef1ce496f/client.jar
-        
-        # Проверяем, что файл скачался
-        if [ -f ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/1.7.10.jar ]; then
-          echo "✅ Minecraft JAR downloaded successfully"
-          ls -lh ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
-        else
-          echo "❌ Failed to download Minecraft JAR"
-          exit 1
-        fi
+        echo "✅ Minecraft JAR downloaded to cache/1.7.10.jar"
+        ls -lh cache/
     
     - name: Make gradlew executable
       run: chmod +x gradlew
@@ -61,11 +51,3 @@ jobs:
         name: YourSingularities
         path: build/libs/*.jar
         if-no-files-found: error
-    
-    - name: Upload JAR to release (if tagged)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: build/libs/*.jar
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
