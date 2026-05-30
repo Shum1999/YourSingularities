@@ -1,4 +1,4 @@
-name: Build Forge 1.7.10 Mod
+name: Build Minecraft Mod
 
 on:
   push:
@@ -18,36 +18,24 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Clean old cache
-      run: |
-        rm -rf ~/.gradle/caches/minecraft/net/minecraftforge/forge/
-        rm -rf ~/.gradle/caches/minecraft/net/minecraft/
-    
-    - name: Pre-download Forge userdev
-      run: |
-        # Скачиваем Forge userdev JAR заранее
-        mkdir -p ~/.gradle/caches/minecraft/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/
-        cd ~/.gradle/caches/minecraft/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/
-        
-        wget -O forge-userdev.jar "https://maven.minecraftforge.net/net/minecraftforge/forge/1.7.10-10.13.4.1614-1.7.10/forge-1.7.10-10.13.4.1614-1.7.10-userdev.jar"
-        
-        # Распаковываем
-        mkdir -p userdev
-        cd userdev
-        unzip -o ../forge-userdev.jar || true
-        
-        echo "Forge userdev prepared"
-        ls -la
-    
-    - name: Make gradlew executable
-      run: chmod +x gradlew
+    - name: Cache Gradle
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
     
     - name: Build with Gradle
-      run: ./gradlew build --stacktrace --no-daemon
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: '2.14.1'
+        arguments: build --stacktrace --no-daemon
     
-    - name: Upload JAR artifact
+    - name: Upload JAR
       uses: actions/upload-artifact@v4
       with:
         name: YourSingularities
         path: build/libs/*.jar
-        if-no-files-found: error
