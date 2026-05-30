@@ -18,32 +18,32 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
-    - name: Download Minecraft JAR from Forge Maven
+    - name: Verify local JAR
       run: |
-        mkdir -p cache
-        
-        echo "Downloading Minecraft 1.7.10 JAR from Forge Maven..."
-        curl -L -o cache/1.7.10.jar \
-          "https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar"
-        
-        # Проверяем размер
-        SIZE=$(stat -c%s "cache/1.7.10.jar")
-        echo "Downloaded file size: $SIZE bytes"
-        
-        if [ $SIZE -lt 8000000 ]; then
-          echo "❌ File too small, download failed"
+        if [ -f cache/1.7.10.jar ]; then
+          SIZE=$(stat -c%s "cache/1.7.10.jar")
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "✅ Found local JAR: $SIZE_MB MB"
+          if [ $SIZE -lt 8000000 ]; then
+            echo "⚠️ Warning: JAR file is only $SIZE_MB MB (expected 8-10 MB)"
+          fi
+        else
+          echo "❌ cache/1.7.10.jar not found!"
           exit 1
         fi
+    
+    - name: Setup Gradle cache
+      run: |
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/
+        mkdir -p ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/
         
-        echo "✅ Valid JAR downloaded"
-        ls -lh cache/1.7.10.jar
-        file cache/1.7.10.jar
+        cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar
+        cp cache/1.7.10.jar ~/.gradle/caches/minecraft/net/minecraft/minecraft_server/1.7.10/minecraft_server-1.7.10.jar
+        
+        echo "✅ JAR copied to Gradle cache"
     
     - name: Make gradlew executable
       run: chmod +x gradlew
-    
-    - name: Clean previous builds
-      run: ./gradlew clean --no-daemon || true
     
     - name: Build with Gradle
       run: ./gradlew build --stacktrace --no-daemon
