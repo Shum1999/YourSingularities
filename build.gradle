@@ -28,7 +28,6 @@ minecraft {
     clientDownloadUrl = "https://disk.yandex.ru/d/aBiUwC4oR4S1fA"
     serverDownloadUrl = "https://disk.yandex.ru/d/aBiUwC4oR4S1fA"
 }
-}
 
 repositories {
     maven {
