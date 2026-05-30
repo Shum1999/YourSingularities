@@ -45,3 +45,97 @@ processResources {
         exclude 'mcmod.info'
     }
 }
+
+// ========== ПОЛНОСТЬЮ ОТКЛЮЧАЕМ ЗАГРУЗКУ ==========
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+// Отключаем все задачи загрузки
+tasks.downloadClient {
+    enabled = false
+    doLast {
+        println "Using pre-downloaded client JAR"
+    }
+}
+
+tasks.downloadServer {
+    enabled = false
+    doLast {
+        println "Using pre-downloaded server JAR"
+    }
+}
+
+tasks.getVersionJson {
+    enabled = false
+    doLast {
+        println "Using pre-downloaded version JSON"
+    }
+}
+
+// Создаём задачу для подготовки файлов
+task prepareMinecraftFiles {
+    doLast {
+        def gradleCache = gradle.gradleUserHomeDir
+        
+        // Директории для файлов
+        def clientDir = new File(gradleCache, "caches/minecraft/net/minecraft/minecraft/1.7.10")
+        def serverDir = new File(gradleCache, "caches/minecraft/net/minecraft/minecraft_server/1.7.10")
+        
+        clientDir.mkdirs()
+        serverDir.mkdirs()
+        
+        // Ищем локальный JAR файл
+        def localJar = null
+        def possibleLocations = [
+            file("cache/1.7.10.jar"),
+            file("minecraft-1.7.10.jar"),
+            file("libs/minecraft-1.7.10.jar"),
+            file("../minecraft-1.7.10.jar")
+        ]
+        
+        for (location in possibleLocations) {
+            if (location.exists() && location.length() > 1000000) {
+                localJar = location
+                println "Found JAR at: ${localJar} (${localJar.length() / 1024 / 1024} MB)"
+                break
+            }
+        }
+        
+        if (!localJar) {
+            // Скачиваем с Forge Maven как резервный вариант
+            println "Downloading from Forge Maven..."
+            def url = "https://maven.minecraftforge.net/net/minecraft/minecraft/1.7.10/minecraft-1.7.10.jar"
+            localJar = file("cache/downloaded.jar")
+            localJar.parentFile.mkdirs()
+            new URL(url).withInputStream { input ->
+                Files.copy(input, localJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+            println "Downloaded: ${localJar.length() / 1024 / 1024} MB"
+        }
+        
+        // Копируем в нужные места
+        def clientTarget = new File(clientDir, "minecraft-1.7.10.jar")
+        def serverTarget = new File(serverDir, "minecraft_server-1.7.10.jar")
+        def simpleTarget = new File(clientDir, "1.7.10.jar")
+        
+        Files.copy(localJar.toPath(), clientTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(localJar.toPath(), serverTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(localJar.toPath(), simpleTarget.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        
+        println "✓ Client JAR: ${clientTarget}"
+        println "✓ Server JAR: ${serverTarget}"
+        
+        // Создаём version JSON
+        def jsonFile = new File(clientDir, "1.7.10.json")
+        if (!jsonFile.exists()) {
+            jsonFile.text = '{"id":"1.7.10","type":"release","minecraftArguments":"--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userProperties ${user_properties} --userType ${user_type}","libraries":[]}'
+            println "✓ Created version JSON"
+        }
+    }
+}
+
+// Зависимости задач
+tasks.mergeJars.dependsOn prepareMinecraftFiles
+tasks.compileJava.dependsOn prepareMinecraftFiles
+prepareMinecraftFiles.mustRunAfter tasks.downloadClient
+prepareMinecraftFiles.mustRunAfter tasks.downloadServer
